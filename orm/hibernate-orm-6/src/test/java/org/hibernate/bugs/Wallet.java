@@ -24,4 +24,8 @@ public class Wallet {
         this.user = user;
         this.walletName = walletName;
     }
+
+    public void setWalletName(String walletName) {
+        this.walletName = walletName;
+    }
 }

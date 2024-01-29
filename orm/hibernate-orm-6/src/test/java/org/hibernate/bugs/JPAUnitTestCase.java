@@ -8,6 +8,8 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import static org.junit.Assert.assertEquals;
+
 /**
  * This template demonstrates how to develop a test case for Hibernate ORM, using the Java Persistence API.
  */
@@ -46,13 +48,22 @@ public class JPAUnitTestCase {
 
 		entityManager.flush();
 
+		profile.setProfileName("newProfile");
+
 		// first entity with inheritance
 		// generates sub-select join as "... from SITE_USER su1_0 join (select * from PROFILE ..."
-		entityManager.createQuery("select u from SiteUser u inner join u.communityProfile as profile where profile.profileName = 'myProfile'", SiteUser.class).getResultList().forEach(System.out::println);
+		// auto-flush not working for profile anymore
+		int sizeInheritance = entityManager.createQuery("select u from SiteUser u inner join u.communityProfile as profile where profile.profileName = 'newProfile'", SiteUser.class).getResultList().size();
+
+		assertEquals(1, sizeInheritance);
+
+		wallet.setWalletName("newWallet");
 
 		// now entity without inheritance
 		// generates standard join as "... from SITE_USER su1_0 join WALLET ..."
-		entityManager.createQuery("select u from SiteUser u inner join u.wallet as wallet where wallet.walletName = 'usd'", SiteUser.class).getResultList().forEach(System.out::println);
+		int size = entityManager.createQuery("select u from SiteUser u inner join u.wallet as wallet where wallet.walletName = 'newWallet'", SiteUser.class).getResultList().size();
+
+		assertEquals(1, size);
 
 		entityManager.getTransaction().commit();
 		entityManager.close();

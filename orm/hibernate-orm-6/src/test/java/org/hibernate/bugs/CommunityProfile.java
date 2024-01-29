@@ -23,4 +23,8 @@ public class CommunityProfile extends Profile {
     public SiteUser getUser() {
         return user;
     }
+
+    public void setProfileName(String newProfile) {
+        this.profileName = newProfile;
+    }
 }
