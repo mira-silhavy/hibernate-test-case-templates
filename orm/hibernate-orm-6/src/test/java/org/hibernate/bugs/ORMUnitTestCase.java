@@ -15,65 +15,177 @@
  */
 package org.hibernate.bugs;
 
+import jakarta.persistence.*;
+import org.hibernate.Hibernate;
 import org.hibernate.Session;
 import org.hibernate.Transaction;
-import org.hibernate.cfg.AvailableSettings;
-import org.hibernate.cfg.Configuration;
+import org.hibernate.annotations.Proxy;
 import org.hibernate.testing.junit4.BaseCoreFunctionalTestCase;
 import org.junit.Test;
+
+import static jakarta.persistence.FetchType.LAZY;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 /**
  * This template demonstrates how to develop a test case for Hibernate ORM, using its built-in unit test framework.
  * Although ORMStandaloneTestCase is perfectly acceptable as a reproducer, usage of this class is much preferred.
  * Since we nearly always include a regression test with bug fixes, providing your reproducer using this method
  * simplifies the process.
- *
+ * <p>
  * What's even better?  Fork hibernate-orm itself, add your test case directly to a module's unit tests, then
  * submit it as a PR!
  */
 public class ORMUnitTestCase extends BaseCoreFunctionalTestCase {
 
-	// Add your entities here.
-	@Override
-	protected Class[] getAnnotatedClasses() {
-		return new Class[] {
-//				Foo.class,
-//				Bar.class
-		};
-	}
+    interface Site {
+        String getFieldName();
+    }
 
-	// If you use *.hbm.xml mappings, instead of annotations, add the mappings here.
-	@Override
-	protected String[] getMappings() {
-		return new String[] {
-//				"Foo.hbm.xml",
-//				"Bar.hbm.xml"
-		};
-	}
-	// If those mappings reside somewhere other than resources/org/hibernate/test, change this.
-	@Override
-	protected String getBaseForMappings() {
-		return "org/hibernate/test/";
-	}
+    interface ASite extends Site {
+        String getAField();
 
-	// Add in any settings that are specific to your test.  See resources/hibernate.properties for the defaults.
-	@Override
-	protected void configure(Configuration configuration) {
-		super.configure( configuration );
+        default String getFieldName() {
+            return getAField();
+        }
+    }
 
-		configuration.setProperty( AvailableSettings.SHOW_SQL, Boolean.TRUE.toString() );
-		configuration.setProperty( AvailableSettings.FORMAT_SQL, Boolean.TRUE.toString() );
-		//configuration.setProperty( AvailableSettings.GENERATE_STATISTICS, "true" );
-	}
+    interface BSite extends Site {
+        String getBField();
 
-	// Add your tests, using standard JUnit.
-	@Test
-	public void hhh123Test() throws Exception {
-		// BaseCoreFunctionalTestCase automatically creates the SessionFactory and provides the Session.
-		Session s = openSession();
-		Transaction tx = s.beginTransaction();
-		// Do stuff...
-		tx.commit();
-		s.close();
-	}
+        default String getFieldName() {
+            return getBField();
+        }
+    }
+
+    interface CSite extends Site {
+        String getCField();
+
+        default String getFieldName() {
+            return getCField();
+        }
+    }
+
+    interface DSite extends Site {
+        String getDField();
+
+        default String getFieldName() {
+            return getDField();
+        }
+    }
+
+    @Entity
+    public static class User {
+
+        @Id
+        @GeneratedValue
+        private Long id;
+
+        @ManyToOne(targetEntity = SiteImpl.class, fetch = LAZY)
+        @JoinColumn(name = "SITE_ID", nullable = false)
+        private Site site;
+
+        public Long getId() {
+            return id;
+        }
+
+        public void setSite(Site site) {
+            this.site = site;
+        }
+
+        public Site getSite() {
+            return site;
+        }
+    }
+
+    @Entity
+    @Inheritance(strategy = InheritanceType.SINGLE_TABLE)
+    @Proxy(proxyClass = Site.class)
+    public static abstract class SiteImpl implements Site {
+        @Id
+        @GeneratedValue
+        private Long id;
+    }
+
+    @Entity
+    @Proxy(proxyClass = ASite.class)
+    public static class ASiteImpl extends SiteImpl implements ASite {
+        private String aField = "a";
+
+        @Override
+        public String getAField() {
+            return aField;
+        }
+    }
+
+    @Entity
+    @Proxy(proxyClass = BSite.class)
+    public static class BSiteImpl extends SiteImpl implements BSite {
+        private String bField = "b";
+
+        @Override
+        public String getBField() {
+            return bField;
+        }
+    }
+
+    @Entity
+    @Proxy(proxyClass = CSite.class)
+    public static class CSiteImpl extends SiteImpl implements CSite {
+        private String bField = "c";
+
+        @Override
+        public String getCField() {
+            return bField;
+        }
+    }
+
+    @Entity
+    @Proxy(proxyClass = DSite.class)
+    public static class DSiteImpl extends SiteImpl implements DSite {
+        private String dField = "d";
+
+        @Override
+        public String getDField() {
+            return dField;
+        }
+    }
+
+    // Add your entities here.
+    @Override
+    protected Class[] getAnnotatedClasses() {
+        return new Class[]{
+                User.class,
+                SiteImpl.class,
+                ASiteImpl.class,
+                BSiteImpl.class,
+                CSiteImpl.class,
+                DSiteImpl.class,
+        };
+    }
+
+    // Add your tests, using standard JUnit.
+    @Test
+    public void testProxyWithInheritance() {
+        // BaseCoreFunctionalTestCase automatically creates the SessionFactory and provides the Session.
+        Session s = openSession();
+        Transaction tx = s.beginTransaction();
+
+        CSiteImpl cSite = new CSiteImpl();
+        session.persist(cSite);
+
+        User user = new User();
+        user.setSite(cSite);
+        session.persist(user);
+
+        session.flush();
+        session.clear();
+
+        user = session.load(User.class, user.getId());
+        assertFalse(Hibernate.isInitialized(user));
+        assertEquals("c", user.getSite().getFieldName());
+
+        tx.commit();
+        s.close();
+    }
 }
